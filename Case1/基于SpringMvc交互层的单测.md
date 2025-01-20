@@ -89,10 +89,8 @@ public class OrderController {
 ```java
 package com.example.demo.interactive.controller;
 
-
 import com.example.demo.domain.entity.Order;
 import com.example.demo.interactive.request.OrderCreateRequest;
-import com.example.demo.interactive.response.ResponseWrapper;
 import com.example.demo.interactive.validator.OrderRequestValidator;
 import com.example.demo.service.OrderApplicationService;
 import org.junit.Before;
@@ -100,32 +98,26 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.mockito.junit.MockitoJUnitRunner;
 import org.springframework.http.MediaType;
-import org.springframework.test.context.junit4.SpringRunner;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@RunWith(SpringRunner.class)
-@WebMvcTest(OrderController.class)
+@RunWith(MockitoJUnitRunner.class)
 public class OrderControllerApiTest {
 
-    @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @Mock
     private OrderApplicationService orderApplicationService;
 
-    @MockBean
+    @Mock
     private OrderRequestValidator orderRequestValidator;
 
     @InjectMocks
@@ -133,160 +125,141 @@ public class OrderControllerApiTest {
 
     @Before
     public void setup() {
-        MockitoAnnotations.initMocks(this);
         mockMvc = MockMvcBuilders.standaloneSetup(orderController).build();
     }
 
     @Test
     public void create_ValidRequest_ReturnsSuccess() throws Exception {
-        OrderCreateRequest request = new OrderCreateRequest();
-        request.setAddress("address");
-        request.setMemberId(1L);
-        request.setOrderAmountTotal(new BigDecimal("100"));
-        request.setOrderNo("orderNo");
-        request.setProductAmountTotal(new BigDecimal("200"));
-        request.setProductCount(100L);
-        request.setProductId(1L);
-        request.setSupplierId(1L);
-
-        doNothing().when(orderRequestValidator).validateCreate(request);
-        doNothing().when(orderApplicationService).create(request.convert());
+        OrderCreateRequest orderCreateRequest = new OrderCreateRequest();
+        Order order = new Order();
+        when(orderCreateRequest.convert()).thenReturn(order);
+        doNothing().when(orderApplicationService).create(any(Order.class));
 
         mockMvc.perform(post("/orders")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\n"
-                        + "    \"orderNo\":\"orderNo\",\n"
-                        + "    \"supplierId\":1,\n"
-                        + "    \"address\":\"address\",\n"
-                        + "    \"productId\":1,\n"
-                        + "    \"orderAmountTotal\":100,\n"
-                        + "    \"productCount\":100,\n"
-                        + "    \"productAmountTotal\":200,\n"
-                        + "    \"memberId\":1\n"
-                        + "}"))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.success").value(true))
-                .andExpect(jsonPath("$.message").value("OK"));
+                .content("{\"address\":\"123 Main St\",\"memberId\":1,\"productCount\":1,\"productId\":1,\"supplierId\":1}"))
+            .andExpect(status().isOk());
     }
 
     @Test
-    public void create_InvalidRequest_ThrowsConstraintViolationException() throws Exception {
-        OrderCreateRequest request = new OrderCreateRequest();
-        request.setAddress(""); // 无效的地址
-
-        doThrow(new ConstraintViolationException("Validation failed", null))
-                .when(orderRequestValidator).validateCreate(request);
+    public void create_InvalidRequest_ThrowsException() throws Exception {
+        // 假设 validateCreate 方法抛出 BadRequestException
+        doNothing().when(orderRequestValidator).validateCreate(any(OrderCreateRequest.class));
 
         mockMvc.perform(post("/orders")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\n"
-                        + "    \"orderNo\":\"orderNo\",\n"
-                        + "    \"supplierId\":1,\n"
-                        + "    \"address\":\"\",\n"
-                        + "    \"productId\":1,\n"
-                        + "    \"orderAmountTotal\":100,\n"
-                        + "    \"productCount\":100,\n"
-                        + "    \"productAmountTotal\":200\n"
-                        + "}"))
-                .andExpect(status().isBadRequest());
+                .content("{\"address\":\"\",\"memberId\":null,\"productCount\":1,\"productId\":1,\"supplierId\":1}"))
+            .andExpect(status().isBadRequest());
     }
 }
 ```
 
 ### 单元测试生成结果分析
-1. 正确性：执行失败，对测试框架的使用有一定偏差，可能是测试框架版本和训练所用代码版本不一致导致，微调后可正确执行
+1. 正确性：
+   1. 执行失败，对测试框架的使用有一定偏差，可能是测试框架版本和训练所用代码版本不一致导致，微调后可正确执行
+   2. 第二个用例错误，代码与测试用例语义不符
+   3. 测试方法名与代码仓库风格不一致
 2. 有效性：生成的单元测试代码已经正确实现了对OrderController类的create方法的测试，并使用了MockMvc进行对HTTP请求的模拟测试
 3. 丰富性：测试用例的丰富度足够，对正确输入、异常输入、边界输入都做了覆盖
-4. 测试设计：对于SpringMvc框架的代码直接选择了MockMvc进行测试，在简单的工程中是不错的选择
-5. 通过对话引导，不使用MockMvc和Mockito进行测试，测试结果如下，整体符合预期
+4. 测试设计按照以下几个点分别展开Prompt，整体比较合理
+   1. 被测方法行为
+   2. 分支和所需的测试用例
+   3. 依赖类的实现
+5. 通过对话引导，不使用MockMvc和Mockito进行测试，生成测试结果如下：
+   1. 当测试覆盖多个相关类时，单元测试会出现混乱，测试用例的语义与实际测试代码不符
+   2. 测试目标方法发生了变化，如第三个测试用例
+   3. 整体来看，当依赖类使用真实实现时，测试代码会比较混乱
+
+![img_1.png](img_1.png)
 
 ```java
+
 package com.example.demo.interactive.controller;
 
 import com.example.demo.domain.entity.Order;
+import com.example.demo.exception.BadRequestException;
 import com.example.demo.interactive.request.OrderCreateRequest;
 import com.example.demo.interactive.response.ResponseWrapper;
 import com.example.demo.interactive.validator.OrderRequestValidator;
 import com.example.demo.service.OrderApplicationService;
 import org.junit.Before;
 import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
-import org.mockito.junit.MockitoJUnitRunner;
 
-import javax.validation.ConstraintViolation;
-import javax.validation.Validation;
-import javax.validation.Validator;
-import javax.validation.ValidatorFactory;
 import java.math.BigDecimal;
-import java.util.Set;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doThrow;
+import static org.junit.Assert.*;
 
-@RunWith(MockitoJUnitRunner.class)
-public class OrderControllerApiTest {
+public class OrderControllerTest {
 
     private OrderController orderController;
-
-    @Mock
     private OrderApplicationService orderApplicationService;
-
-    @Mock
     private OrderRequestValidator orderRequestValidator;
 
-    private Validator validator;
-
     @Before
-    public void setup() {
-        MockitoAnnotations.initMocks(this);
-        ValidatorFactory factory = Validation.buildDefaultValidatorFactory();
-        validator = factory.getValidator();
+    public void setUp() {
+        // 实例化真实的依赖对象
+        orderApplicationService = new OrderApplicationService(null, null, null);
+        orderRequestValidator = new OrderRequestValidator();
+
+        // 实例化控制器
         orderController = new OrderController(orderApplicationService, orderRequestValidator);
     }
 
     @Test
-    public void should_return_success_result_when_create_order_given_order_service_create_success() {
+    public void testCreate_ValidRequest_ShouldReturnSuccess() {
+        // 准备有效的 OrderCreateRequest
         OrderCreateRequest request = new OrderCreateRequest();
-        request.setAddress("address");
+        request.setAddress("123 Main St");
         request.setMemberId(1L);
-        request.setOrderAmountTotal(new BigDecimal("100"));
-        request.setOrderNo("orderNo");
-        request.setProductAmountTotal(new BigDecimal("200"));
-        request.setProductCount(100L);
-        request.setProductId(1L);
-        request.setSupplierId(1L);
+        request.setProductCount(10L);
+        request.setProductId(100L);
+        request.setSupplierId(200L);
+        request.setOrderAmountTotal(new BigDecimal("100.00"));
+        request.setProductAmountTotal(new BigDecimal("90.00"));
 
-        doNothing().when(orderRequestValidator).validateCreate(request);
-        doNothing().when(orderApplicationService).create(request.convert());
-
+        // 执行测试
         ResponseWrapper response = orderController.create(request);
 
-        assertEquals(true, response.isSuccess());
-        assertEquals("OK", response.getMessage());
+        // 断言结果
+        assertNotNull(response);
+        assertTrue(response.isSuccess());
+        assertNull(response.getMessage()); // 因为是成功的响应，message 应该为空
     }
 
-    @Test(expected = ConstraintViolationException.class)
-    public void should_throw_constraint_violation_exception_when_create_order_given_invalid_request() {
+    @Test(expected = BadRequestException.class)
+    public void testCreate_InvalidRequest_ShouldThrowBadRequestException() {
+        // 准备无效的 OrderCreateRequest
         OrderCreateRequest request = new OrderCreateRequest();
-        request.setAddress(""); // 无效的地址
-        request.setMemberId(1L);
-        request.setOrderAmountTotal(new BigDecimal("100"));
-        request.setOrderNo("orderNo");
-        request.setProductAmountTotal(new BigDecimal("200"));
-        request.setProductCount(100L);
-        request.setProductId(1L);
-        request.setSupplierId(1L);
+        request.setAddress(""); // 无效地址
+        request.setMemberId(null); // 无效 memberId
 
-        Set<ConstraintViolation<OrderCreateRequest>> violations = validator.validate(request);
-        assertTrue(violations.size() > 0);
-
+        // 执行测试（预期抛出 BadRequestException）
         orderController.create(request);
     }
-}
 
+    @Test
+    public void testCreate_ConvertToOrder_ShouldWorkCorrectly() {
+        // 准备有效的 OrderCreateRequest
+        OrderCreateRequest request = new OrderCreateRequest();
+        request.setAddress("123 Main St");
+        request.setMemberId(1L);
+        request.setProductCount(10L);
+        request.setProductId(100L);
+        request.setSupplierId(200L);
+        request.setOrderAmountTotal(new BigDecimal("100.00"));
+        request.setProductAmountTotal(new BigDecimal("90.00"));
+
+        // 执行测试
+        Order order = request.convert();
+
+        // 断言结果
+        assertNotNull(order);
+        assertEquals("123 Main St", order.getAddress());
+        assertEquals(new BigDecimal("100.00"), order.getOrderAmountTotal());
+        assertEquals(new BigDecimal("90.00"), order.getProductAmountTotal());
+        assertEquals(10L, order.getProductCount().longValue());
+        assertEquals(100L, order.getProductId().longValue());
+        assertEquals(200L, order.getSupplierId().longValue());
+    }
+}
 ```
